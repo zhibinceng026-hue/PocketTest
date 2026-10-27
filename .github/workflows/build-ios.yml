@@ -1,0 +1,44 @@
+name: Build iPhone test app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'PocketTest/**'
+      - 'PocketTest.xcodeproj/**'
+      - 'scripts/**'
+      - '.github/workflows/build-ios.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pockettest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build unsigned iPhone IPA
+        run: bash scripts/build-unsigned.sh
+      - name: Upload IPA and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketTest-unsigned
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 3
+      - name: Upload compiler log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketTest-build-log
+          path: build/device-build.log
+          if-no-files-found: ignore
+          retention-days: 3
