@@ -6,9 +6,12 @@
 
 ## 当前状态
 
-已准备源码、Xcode 工程、GitHub Actions 编译配置和未签名 IPA 打包脚本。
-本机为 Windows，尚未使用 Xcode 编译；尚未生成 IPA，也尚未在 iPhone 上运行。
-只有实际编译、签名安装、打开并验证后，才能确认完整链路已打通。
+2026-10-27：已在 GitHub 的 macOS runner 上完成首次 Xcode 编译，成功生成未签名 IPA。
+[首次成功构建](https://github.com/zhibinceng026-hue/PocketTest/actions/runs/40503761388)，对应提交 `585a3c61d02721182d91288a60b5c27092b9af62`。
+下载的 IPA 已通过 ZIP 完整性、SHA-256、应用标识和 arm64 可执行文件检查。
+尚未在 iPhone 真机上完成签名安装、启动及自动续签验证；完整链路仍待真机验收。
+
+仓库另有 `Preview native iPhone app` 工作流，可在 iPhone 模拟器里启动原生 App 并输出截图。
 
 ## Windows + GitHub + SideStore / AltStore
 
