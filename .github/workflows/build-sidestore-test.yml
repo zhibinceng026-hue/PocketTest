@@ -93,7 +93,9 @@ jobs:
         run: |
           set -euo pipefail
           APP=SideStore.xcarchive/Products/Applications/SideStore.app
-          xcrun nm -arch arm64 -U "$APP/SideStore" > build/symbols.txt
+          DSYM=SideStore.xcarchive/dSYMs/SideStore.app.dSYM/Contents/Resources/DWARF/SideStore
+          xcrun nm -arch arm64 -U "$DSYM" > build/symbols.txt
+          grep -E ' _idevice_(new|new_with_options|free|new_tcp_socket)$| _lockdownd_client_(free|new_with_handshake)$' build/symbols.txt
           grep -q ' _idevice_new_with_options$' build/symbols.txt
           grep -q ' _lockdownd_client_new_with_handshake$' build/symbols.txt
           if grep -q ' _idevice_new_tcp_socket$' build/symbols.txt; then
@@ -140,4 +142,12 @@ jobs:
             build/personal-test.patch
             build/symbols.txt
           if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload matching app debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: SideStore-CGateway-dSYMs
+          path: SideStore.xcarchive/dSYMs/SideStore.app.dSYM
+          if-no-files-found: error
           retention-days: 7
