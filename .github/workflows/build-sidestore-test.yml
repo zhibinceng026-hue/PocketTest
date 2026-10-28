@@ -76,17 +76,37 @@ jobs:
               "GatewayBackend.libimobiledevice.rawValue",
               expected=2
           )
+          replace_once(
+              "Dependencies/minimuxer/DeviceGateway/libimobiledevice/LibimobiledeviceGateway.swift",
+              "let sErr = lockdownd_start_service(lockdown, service.rawValue, &serviceDescriptor)",
+              '''// Lockdown uses the traditional misagent name, not the RSD shim name.
+                      let serviceName = service == .misagent ? "com.apple.misagent" : service.rawValue
+                      let sErr = lockdownd_start_service(lockdown, serviceName, &serviceDescriptor)'''
+          )
+          replace_once(
+              "Dependencies/minimuxer/DeviceGateway/libimobiledevice/LibimobiledeviceGateway.swift",
+              r'''throw LibimobiledeviceGatewayError(.serviceError, reason: "Failed to start lockdown service '\(service.rawValue)': code \(sErr.rawValue)")''',
+              r'''throw LibimobiledeviceGatewayError(.serviceError, reason: "Failed to start lockdown service '\(serviceName)': code \(sErr.rawValue)")'''
+          )
           Path("build").mkdir(exist_ok=True)
           import subprocess
           with open("build/personal-test.patch", "w") as out:
               subprocess.run(["git", "diff"], stdout=out, check=True)
               subprocess.run(["git", "-C", "Dependencies/minimuxer", "diff"], stdout=out, check=True)
 
+      - name: Cache public compiler dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            ~/Library/Caches/org.swift.swiftpm
+          key: sidestore-d97-xcode26.4-cgateway-v2
+
       - name: Compile unsigned device archive
         shell: bash
         run: |
           set -o pipefail
-          make -B build MARKETING_VERSION=0.7.0-cgateway.1 2>&1 | tee build/compiler.log | xcbeautify --renderer github-actions
+          make -B build MARKETING_VERSION=0.7.0-cgateway.2 2>&1 | tee build/compiler.log | xcbeautify --renderer github-actions
 
       - name: Verify C gateway symbols and package
         shell: bash
