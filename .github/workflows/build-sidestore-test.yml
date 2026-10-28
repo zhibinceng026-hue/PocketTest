@@ -1,0 +1,143 @@
+name: Build SideStore C gateway test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-sidestore-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - name: Check out pinned upstream source
+        uses: actions/checkout@v4
+        with:
+          repository: SideStore/SideStore
+          ref: d97ec133719d79916675bdaf722b82a8d091d545
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: '26.4'
+
+      - name: Install official build tools
+        run: brew install ldid xcbeautify
+
+      - name: Build only the libimobiledevice gateway
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new, expected=1):
+              path = Path(path)
+              text = path.read_text(encoding="utf-8")
+              if text.count(old) != expected:
+                  raise RuntimeError(f"Unexpected upstream source in {path}")
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          replace_once(
+              "Dependencies/minimuxer/Package.swift",
+              '                .product(name: "IdeviceGateway", package: "DeviceGateway"),\n',
+              ""
+          )
+          replace_once(
+              "Dependencies/minimuxer/Sources/MinimuxerApi.swift",
+              "import IdeviceGateway\n",
+              ""
+          )
+          replace_once(
+              "Dependencies/minimuxer/Sources/MinimuxerApi.swift",
+              """        switch backend {
+                      case .libimobiledevice:
+                          return LibimobiledeviceGateway()
+                      case .idevice:
+                          return IdeviceGateway()
+                  }""",
+              """        // This personal test build omits Rust FFI to avoid colliding C exports.
+                  // The legacy setting still loads; device renewal needs proper testing.
+                  return LibimobiledeviceGateway()"""
+          )
+          replace_once(
+              "Dependencies/minimuxer/Sources/MinimuxerApi.swift",
+              "private static var currentBackend: GatewayBackend = .idevice",
+              "private static var currentBackend: GatewayBackend = .libimobiledevice"
+          )
+          replace_once(
+              "AltStore/Core/Extensions/UserDefaults+AltStore.swift",
+              "GatewayBackend.idevice.rawValue",
+              "GatewayBackend.libimobiledevice.rawValue",
+              expected=2
+          )
+          Path("build").mkdir(exist_ok=True)
+          import subprocess
+          with open("build/personal-test.patch", "w") as out:
+              subprocess.run(["git", "diff"], stdout=out, check=True)
+              subprocess.run(["git", "-C", "Dependencies/minimuxer", "diff"], stdout=out, check=True)
+
+      - name: Compile unsigned device archive
+        shell: bash
+        run: |
+          set -o pipefail
+          make build MARKETING_VERSION=0.7.0-cgateway.1 2>&1 | tee build/compiler.log | xcbeautify --renderer github-actions
+
+      - name: Verify C gateway symbols and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=SideStore.xcarchive/Products/Applications/SideStore.app
+          xcrun nm -arch arm64 -U "$APP/SideStore" > build/symbols.txt
+          grep -q ' _idevice_new_with_options$' build/symbols.txt
+          grep -q ' _lockdownd_client_new_with_handshake$' build/symbols.txt
+          if grep -q ' _idevice_new_tcp_socket$' build/symbols.txt; then
+            echo "Rust IDevice unexpectedly remains linked"
+            exit 1
+          fi
+          make fakesign ipa
+          mkdir -p dist
+          cp SideStore.ipa dist/SideStore-CGateway-test.ipa
+          shasum -a 256 dist/SideStore-CGateway-test.ipa > dist/SHA256SUMS.txt
+          python3 - <<'PY'
+          import json, plistlib
+          from pathlib import Path
+          path = Path("SideStore.xcarchive/Products/Applications/SideStore.app/Info.plist")
+          info = plistlib.loads(path.read_bytes())
+          result = {
+              "upstream_commit": "d97ec133719d79916675bdaf722b82a8d091d545",
+              "gateway": "libimobiledevice",
+              "rust_gateway_linked": False,
+              "version": info["CFBundleShortVersionString"],
+              "bundle_identifier": info["CFBundleIdentifier"],
+              "minimum_os": info["MinimumOSVersion"],
+              "device_renewal_verified": False,
+          }
+          Path("dist/build-verification.json").write_text(json.dumps(result, indent=2))
+          print(json.dumps(result))
+          PY
+
+      - name: Upload test IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SideStore-CGateway-test
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SideStore-CGateway-build-log
+          path: |
+            build/compiler.log
+            build/personal-test.patch
+            build/symbols.txt
+          if-no-files-found: ignore
+          retention-days: 7
