@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          make build MARKETING_VERSION=0.7.0-cgateway.1 2>&1 | tee build/compiler.log | xcbeautify --renderer github-actions
+          make -B build MARKETING_VERSION=0.7.0-cgateway.1 2>&1 | tee build/compiler.log | xcbeautify --renderer github-actions
 
       - name: Verify C gateway symbols and package
         shell: bash
