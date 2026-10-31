@@ -1,16 +1,20 @@
-name: Build Agent Control 1.0 iPhone IPA
+name: Build Agent Control 1.1 iPhone IPA
+
 on:
   workflow_dispatch:
   push:
     branches: ['agent-control-v1-*']
     paths:
-      - 'agent-control-mobile-1.0.0-source.zip'
+      - 'agent-control-mobile-1.1.0-source.zip'
       - '.github/workflows/build-agent-control-ios.yml'
+
 permissions:
   contents: read
+
 concurrency:
   group: agent-control-ipa-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-26
@@ -27,7 +31,7 @@ jobs:
           persist-credentials: false
       - name: Unpack the reviewed mobile source
         working-directory: .
-        run: unzip -q agent-control-mobile-1.0.0-source.zip
+        run: unzip -q agent-control-mobile-1.1.0-source.zip
       - uses: pnpm/action-setup@v4
         with:
           version: 11.25.0
@@ -49,7 +53,7 @@ jobs:
       - name: Upload IPA and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Agent-Control-1.0.0-unsigned
+          name: Agent-Control-1.1.0-unsigned
           path: agent-control/mobile/dist/*
           if-no-files-found: error
           retention-days: 7
