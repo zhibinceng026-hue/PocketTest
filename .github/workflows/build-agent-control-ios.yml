@@ -1,0 +1,63 @@
+name: Build Agent Control 1.0 iPhone IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: ['agent-control-v1-*']
+    paths:
+      - 'agent-control-mobile-1.0.0-source.zip'
+      - '.github/workflows/build-agent-control-ios.yml'
+permissions:
+  contents: read
+concurrency:
+  group: agent-control-ipa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: agent-control/mobile
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Unpack the reviewed mobile source
+        working-directory: .
+        run: unzip -q agent-control-mobile-1.0.0-source.zip
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: agent-control/mobile/pnpm-lock.yaml
+      - name: Select compatible Xcode
+        run: |
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          fi
+          xcodebuild -version
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Compile unsigned device Release IPA
+        run: bash scripts/build-unsigned-ios.sh
+      - name: Upload IPA and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: Agent-Control-1.0.0-unsigned
+          path: agent-control/mobile/dist/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Agent-Control-iOS-build-log
+          path: agent-control/mobile/build/*.log
+          if-no-files-found: ignore
+          retention-days: 7
