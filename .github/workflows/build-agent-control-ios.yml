@@ -31,7 +31,13 @@ jobs:
           persist-credentials: false
       - name: Unpack the reviewed mobile source
         working-directory: .
-        run: unzip -q agent-control-mobile-1.2.1-source.zip
+        run: |
+          unzip -q agent-control-mobile-1.2.1-source.zip
+          python3 - <<'PY'
+          from pathlib import Path
+          for script in Path('agent-control/mobile/scripts').glob('*.sh'):
+              script.write_bytes(script.read_bytes().replace(b'\r\n', b'\n'))
+          PY
       - uses: pnpm/action-setup@v4
         with:
           version: 11.25.0
