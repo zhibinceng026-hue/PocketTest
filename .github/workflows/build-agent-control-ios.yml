@@ -1,11 +1,11 @@
-name: Build Agent Control 1.2.6 iPhone IPA
+name: Build Agent Control 1.2.9 iPhone IPA
 
 on:
   workflow_dispatch:
   push:
     branches: ['agent-control-v1-*']
     paths:
-      - 'agent-control-mobile-1.2.6-source.zip'
+      - 'agent-control-mobile-1.2.9-source.zip'
       - '.github/workflows/build-agent-control-ios.yml'
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
       - name: Unpack the reviewed mobile source
         working-directory: .
         run: |
-          unzip -q agent-control-mobile-1.2.6-source.zip
+          unzip -q agent-control-mobile-1.2.9-source.zip
           python3 - <<'PY'
           from pathlib import Path
           for script in Path('agent-control/mobile/scripts').glob('*.sh'):
@@ -59,7 +59,7 @@ jobs:
       - name: Upload IPA and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Agent-Control-1.2.6-unsigned
+          name: Agent-Control-1.2.9-unsigned
           path: agent-control/mobile/dist/*
           if-no-files-found: error
           retention-days: 7
