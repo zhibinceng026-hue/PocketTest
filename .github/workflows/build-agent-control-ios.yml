@@ -1,0 +1,91 @@
+name: Build Agent Control 1.2.10 iPhone IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: ['agent-control-v1-*']
+    paths:
+      - 'agent-control-mobile-1.2.10-source.zip'
+      - '.github/workflows/build-agent-control-ios.yml'
+permissions:
+  contents: read
+concurrency:
+  group: agent-control-ipa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-26-intel
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: agent-control/mobile
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Unpack reviewed source
+        working-directory: .
+        run: |
+          unzip -q agent-control-mobile-1.2.10-source.zip
+          python3 - <<'PY'
+          from pathlib import Path
+          for script in Path('agent-control/mobile/scripts').glob('*.sh'):
+              script.write_bytes(script.read_bytes().replace(b'\r\n', b'\n'))
+          PY
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: agent-control/mobile/pnpm-lock.yaml
+      - name: Select compatible Xcode
+        id: xcode
+        run: |
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          fi
+          xcodebuild -version
+          echo "cache-key=$(xcodebuild -version | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - name: Cache iOS dependency downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods/repos
+            ~/Library/Caches/ReactNative
+          key: ios-downloads-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('agent-control/mobile/pnpm-lock.yaml') }}
+          restore-keys: |
+            ios-downloads-v1-${{ runner.os }}-${{ runner.arch }}-
+      - name: Cache native dependencies and Xcode build products
+        uses: actions/cache@v4
+        with:
+          path: |
+            agent-control/mobile/ios/Pods
+            agent-control/mobile/build/device/Build
+            agent-control/mobile/build/device/ModuleCache.noindex
+            agent-control/mobile/build/device/SDKStatCaches.noindex
+            agent-control/mobile/build/device/CompilationCache.noindex
+          key: ios-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.cache-key }}-${{ hashFiles('agent-control/mobile/pnpm-lock.yaml', 'agent-control/mobile/modules/**/*.podspec', 'agent-control/mobile/scripts/patch-webrtc-pip.py') }}-${{ github.sha }}
+          restore-keys: |
+            ios-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.cache-key }}-${{ hashFiles('agent-control/mobile/pnpm-lock.yaml', 'agent-control/mobile/modules/**/*.podspec', 'agent-control/mobile/scripts/patch-webrtc-pip.py') }}-
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Compile unsigned device Release IPA
+        run: bash scripts/build-unsigned-ios.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Agent-Control-1.2.10-unsigned
+          path: agent-control/mobile/dist/*
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Agent-Control-iOS-build-log
+          path: agent-control/mobile/build/*.log
+          if-no-files-found: ignore
+          retention-days: 7
