@@ -34,14 +34,14 @@ jobs:
       - name: Build
         run: |
           cd "$HOME/w/src"
-          python3 tools_webrtc/ios/build_ios_libs.py --arch device:arm64 --output-dir "$HOME/w/out" --extra-gn-args rtc_use_h265=true proprietary_codecs=true ffmpeg_branding=\"Chrome\"
+          python3 tools_webrtc/ios/build_ios_libs.py --arch device:arm64 --output-dir "$HOME/w/src/out_ios_libs" --extra-gn-args rtc_use_h265=true proprietary_codecs=true ffmpeg_branding=\"Chrome\"
       - name: Check decoder is present
         run: |
-          BIN=$(find "$HOME/w/out" -type f -path '*WebRTC.framework/WebRTC' | head -1)
+          BIN=$(find "$HOME/w/src/out_ios_libs" -type f -path '*WebRTC.framework/WebRTC' | head -1)
           echo "$BIN"; ls -l "$BIN"
           strings "$BIN" | grep -c RTCVideoDecoderH265
       - uses: actions/upload-artifact@v4
         with:
           name: WebRTC-h265-xcframework
-          path: ~/w/out/WebRTC.xcframework
+          path: ~/w/src/out_ios_libs/WebRTC.xcframework
           retention-days: 14
