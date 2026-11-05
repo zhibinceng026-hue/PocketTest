@@ -8,6 +8,7 @@ on:
       - '.github/workflows/build-agent-control-ios.yml'
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: agent-control-ipa-${{ github.ref }}
   cancel-in-progress: true
@@ -69,12 +70,21 @@ jobs:
             agent-control/mobile/build/device/ModuleCache.noindex
             agent-control/mobile/build/device/SDKStatCaches.noindex
             agent-control/mobile/build/device/CompilationCache.noindex
-          key: ios-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.cache-key }}-${{ hashFiles('agent-control/mobile/pnpm-lock.yaml', 'agent-control/mobile/modules/**/*.podspec', 'agent-control/mobile/scripts/patch-webrtc-pip.py') }}-${{ github.sha }}
+          key: ios-build-h265-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.cache-key }}-${{ hashFiles('agent-control/mobile/pnpm-lock.yaml', 'agent-control/mobile/modules/**/*.podspec', 'agent-control/mobile/scripts/patch-webrtc-pip.py') }}-${{ github.sha }}
           restore-keys: |
-            ios-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.cache-key }}-${{ hashFiles('agent-control/mobile/pnpm-lock.yaml', 'agent-control/mobile/modules/**/*.podspec', 'agent-control/mobile/scripts/patch-webrtc-pip.py') }}-
+            ios-build-h265-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.cache-key }}-${{ hashFiles('agent-control/mobile/pnpm-lock.yaml', 'agent-control/mobile/modules/**/*.podspec', 'agent-control/mobile/scripts/patch-webrtc-pip.py') }}-
+      - name: Download H.265 WebRTC
+        uses: actions/download-artifact@v4
+        with:
+          name: WebRTC-h265-xcframework
+          path: ${{ github.workspace }}/webrtc-h265
+          run-id: 42033773745
+          github-token: ${{ github.token }}
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Compile unsigned device Release IPA
+        env:
+          WEBRTC_H265_DIR: ${{ github.workspace }}/webrtc-h265
         run: bash scripts/build-unsigned-ios.sh
       - uses: actions/upload-artifact@v4
         with:
