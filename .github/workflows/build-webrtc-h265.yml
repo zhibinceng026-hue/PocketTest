@@ -34,7 +34,7 @@ jobs:
       - name: Build
         run: |
           cd "$HOME/w/src"
-          python3 tools_webrtc/ios/build_ios_libs.py --arch device:arm64 --output-dir "$HOME/w/src/out_ios_libs" --extra-gn-args rtc_use_h265=true proprietary_codecs=true ffmpeg_branding=\"Chrome\"
+          python3 tools_webrtc/ios/build_ios_libs.py --arch device:arm64 --output-dir "$HOME/w/src/out_ios_libs" --extra-gn-args rtc_use_h265=true proprietary_codecs=true
       - name: Check decoder is present
         run: |
           BIN=$(find "$HOME/w/src/out_ios_libs" -type f -path '*WebRTC.framework/WebRTC' | head -1)
