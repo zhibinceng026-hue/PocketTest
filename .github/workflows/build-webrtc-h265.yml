@@ -1,0 +1,47 @@
+name: Build WebRTC with H265 decoder
+
+on:
+  push:
+    branches: [webrtc-h265-build]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: patch
+      - name: Free disk space
+        run: |
+          sudo rm -rf /Users/runner/Library/Android /usr/local/share/dotnet /Library/Developer/CoreSimulator/Profiles/Runtimes || true
+          df -h /
+      - name: Fetch source
+        run: |
+          mkdir -p "$HOME/w"
+          cd "$HOME/w"
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$HOME/w/depot_tools" >> "$GITHUB_PATH"
+          export PATH="$HOME/w/depot_tools:$PATH"
+          gclient config --name src --unmanaged https://github.com/jitsi/webrtc.git
+          echo "target_os = ['ios', 'mac']" >> .gclient
+          git clone --depth 1 --branch v155.0.1 https://github.com/jitsi/webrtc.git src
+          gclient sync --no-history --shallow -j 8
+          df -h /
+      - name: Apply H265 patch
+        run: python3 "$GITHUB_WORKSPACE/patch/webrtc-h265/apply_patch.py" "$HOME/w/src" "$GITHUB_WORKSPACE/patch/webrtc-h265"
+      - name: Build
+        run: |
+          cd "$HOME/w/src"
+          python3 tools_webrtc/ios/build_ios_libs.py --arch device:arm64 --output-dir "$HOME/w/out" --extra-gn-args rtc_use_h265=true proprietary_codecs=true ffmpeg_branding=\"Chrome\"
+      - name: Check decoder is present
+        run: |
+          BIN=$(find "$HOME/w/out" -type f -path '*WebRTC.framework/WebRTC' | head -1)
+          echo "$BIN"; ls -l "$BIN"
+          strings "$BIN" | grep -c RTCVideoDecoderH265
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WebRTC-h265-xcframework
+          path: ~/w/out/WebRTC.xcframework
+          retention-days: 14
